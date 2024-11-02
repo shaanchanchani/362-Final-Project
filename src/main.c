@@ -322,102 +322,44 @@ uint8_t spi_transfer(uint8_t data) {
 }
 
 #ifdef LCD_SETUP
-#define CELL_SIZE   30    // Size of each cell
-#define BOARD_X     20    // Starting X position
-#define BOARD_Y     40    // Starting Y position
-#define ROWS        6     // Standard Connect Four has 6 rows
-#define COLS        7     // Standard Connect Four has 7 columns
-
-void draw_connect_four_board(void) {
-    // Draw blue background rectangle
-    // drawfillrect(BOARD_X, BOARD_Y, COLS * CELL_SIZE, ROWS * CELL_SIZE, 0x001F);  // Blue color
-    
-    // // Draw the grid holes (black circles represented as filled rectangles with small size)
-    // for(int row = 0; row < ROWS; row++) {
-    //     for(int col = 0; col < COLS; col++) {
-    //         // Calculate center position for each cell
-    //         int x = BOARD_X + (col * CELL_SIZE) + 5;
-    //         int y = BOARD_Y + (row * CELL_SIZE) + 5;
-            
-    //         // Draw black circle (represented as smaller filled rectangle)
-    //         drawfillrect(x, y, CELL_SIZE - 10, CELL_SIZE - 10, 0x0000);  // Black color
-    //     }
-    // }
-    
-    
-    // Draw title above the board
-    // char title[] = "CONNECT FOUR";
-    // drawtext(BOARD_X + 30, BOARD_Y - 30, title, 0xFFFF);  // White color
-}
 
 int main(void) {
     internal_clock();
     init_usart5();
     init_lcd_spi();
     
-    // Enable line buffering for stdio
-    setbuf(stdin,0);
-    setbuf(stdout,0);
-    setbuf(stderr,0);
+    // Initialize LCD
+    LCD_Setup();
+    printf("LCD Setup complete\n");
     
-    printf("This is the STM32 command shell.\n");
-    printf("Type 'lcd_init' before trying any draw commands.\n");
+    // Clear to white first to test if LCD is responding
+    LCD_Clear(WHITE);
+    printf("Cleared to white\n");
     
-    char cmd[80];
+    delay_ms(1000);  // Wait a second
+    
+    // Try drawing simple patterns
+    // Draw red top half
+    LCD_DrawFillRectangle(0, 0, 240, 160, RED);
+    printf("Drew red rectangle\n");
+    
+    // Draw blue bottom half
+    LCD_DrawFillRectangle(0, 161, 240, 320, BLUE);
+    printf("Drew blue rectangle\n");
+    
+    printf("Test pattern complete\n");
     
     // Main loop
     for(;;) {
-        printf("> ");
-        if (fgets(cmd, 80, stdin) != NULL) {
-            // Remove newline
-            cmd[strcspn(cmd, "\n")] = 0;
-            
-            // Parse command
-            if (strcmp(cmd, "lcd_init") == 0) {
-                lcd_init();
-            }
-            else if (strncmp(cmd, "clear ", 6) == 0) {
-                uint16_t color;
-                if (sscanf(cmd, "clear %hx", &color) == 1) {
-                    clear(color);
-                }
-            }
-            else if (strncmp(cmd, "drawfillrect ", 12) == 0) {
-                int x1, y1, x2, y2;
-                uint16_t color;
-                if (sscanf(cmd, "drawfillrect %d %d %d %d %hx", &x1, &y1, &x2, &y2, &color) == 5) {
-                    drawfillrect(x1, y1, x2, y2, color);
-                }
-            }
-            else if (strncmp(cmd, "drawline ", 9) == 0) {
-                int x1, y1, x2, y2;
-                uint16_t color;
-                if (sscanf(cmd, "drawline %d %d %d %d %hx", &x1, &y1, &x2, &y2, &color) == 5) {
-                    drawline(x1, y1, x2, y2, color);
-                }
-            }
-        }
+        // Wait here
     }
 }
 
-
-// int main(void) {
-//     internal_clock();
-//     init_usart5();
-//     init_lcd_spi();
-    
-//     // Enable line buffering for stdio
-//     setbuf(stdin,0);
-//     setbuf(stdout,0);
-//     setbuf(stderr,0);
-    
-//     printf("LCD initialized. Ready for commands.\n");
-    
-//     // Main loop
-//     for(;;) {
-//         // Wait for commands through USART
-//         // The actual lcd_init, clear, drawfillrect, and drawline commands
-//         // will be handled by the provided library functions
-//     }
-// }
+// Add this helper function if you don't have it
+void delay_ms(uint32_t ms) {
+    // Simple delay function
+    for(uint32_t i = 0; i < ms * 8000; i++) {
+        __NOP();
+    }
+}
 #endif
