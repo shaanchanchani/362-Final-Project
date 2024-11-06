@@ -18,6 +18,7 @@ const char* username = "schancha";
 #include "stm32f0xx.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "fifo.h"
 #include "tty.h"
 #include "lcd.h"
@@ -30,137 +31,16 @@ void sdcard_io_high_speed(void);
 void init_lcd_spi(void);
 uint8_t spi_transfer(uint8_t data);
 
-// Uncomment only one of the following to test each step
-// #define STEP1
-// #define STEP2
-// #define STEP3
-// #define STEP4
+char ** allocateBoard() ; 
+void freeBoard(char **) ; 
+char placeChip(int * ,int, char) ; 
+int * allocateRow() ; 
+void checkWin(int ,int,int, char,int) ; 
+void changeCoordinates(int*,int*,int);
+void printBoard() ; 
+char simulateGame(int * ) ; 
+void nano_wait(int);
 
-#define SHELL
-// #define LCD_SETUP
-
-
-#ifdef STEP1
-int main(void){
-    internal_clock();
-    init_usart5();
-    for(;;) {
-        while (!(USART5->ISR & USART_ISR_RXNE)) { }
-        char c = USART5->RDR;
-        while(!(USART5->ISR & USART_ISR_TXE)) { }
-        USART5->TDR = c;
-    }
-}
-#endif
-
-#ifdef STEP2
-#include <stdio.h>
-
-// TODO Resolve the echo and carriage-return problem
-
-int __io_putchar(int c) {
-    if(c == '\n') {
-        while(!(USART5->ISR & USART_ISR_TXE));
-        USART5 -> TDR = '\r';
-    }
-    while(!(USART5->ISR & USART_ISR_TXE));
-    USART5->TDR = c;
-    return c;
-}
-
-int __io_getchar(void) {
-    while (!(USART5->ISR & USART_ISR_RXNE));
-    char c = USART5->RDR;
-    if(c == '\r') {
-        c = '\n';
-    }
-    __io_putchar(c);
-    return c;
-}
-
-int main() {
-    internal_clock();
-    init_usart5();
-    setbuf(stdin,0);
-    setbuf(stdout,0);
-    setbuf(stderr,0);
-    printf("Enter your name: ");
-    char name[80];
-    fgets(name, 80, stdin);
-    printf("Your name is %s", name);
-    printf("Type any characters.\n");
-    for(;;) {
-        char c = getchar();
-        putchar(c);
-    }
-}
-#endif
-
-#ifdef STEP3
-#include <stdio.h>
-#include "fifo.h"
-#include "tty.h"
-int __io_putchar(int c) {
-    if(c == '\n') {
-        while(!(USART5->ISR & USART_ISR_TXE));
-        USART5 -> TDR = '\r';
-    }
-    while(!(USART5->ISR & USART_ISR_TXE));
-    USART5->TDR = c;
-    return c;
-}
-
-int __io_getchar(void) {
-    return line_buffer_getchar();
-}
-
-int main() {
-    internal_clock();
-    init_usart5();
-    setbuf(stdin,0);
-    setbuf(stdout,0);
-    setbuf(stderr,0);
-    printf("Enter your name: ");
-    char name[80];
-    fgets(name, 80, stdin);
-    printf("Your name is %s", name);
-    printf("Type any characters.\n");
-    for(;;) {
-        char c = getchar();
-        putchar(c);
-    }
-}
-#endif
-
-#ifdef STEP4
-
-#include <stdio.h>
-#include "fifo.h"
-#include "tty.h"
-
-// TODO DMA data structures
-
-
-int main() {
-    internal_clock();
-    init_usart5();
-    enable_tty_interrupt();
-    setbuf(stdin,0); // These turn off buffering; more efficient, but makes it hard to explain why first 1023 characters not dispalyed
-    setbuf(stdout,0);
-    setbuf(stderr,0);
-    printf("Enter your name: "); // Types name but shouldn't echo the characters; USE CTRL-J to finish
-    char name[80];
-    fgets(name, 80, stdin);
-    printf("Your name is %s", name);
-    printf("Type any characters.\n"); // After, will type TWO instead of ONE
-    for(;;) {
-        char c = getchar();
-        putchar(c);
-    }
-}
-#endif
-
-#ifdef SHELL
 
 #define FIFOSIZE 16
 char serfifo[FIFOSIZE];
@@ -336,47 +216,7 @@ void sdcard_io_high_speed(void) {
     // Re-enable the SPI1 channel
     SPI1->CR1 |= SPI_CR1_SPE;
 }
-// // Add these functions before main or in a separate section
-// void init_spi1_slow(void) {
-//     // Enable GPIOB clock
-//     RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-    
-//     // Configure PB3 (SCK), PB4 (MISO), and PB5 (MOSI) for alternate function
-//     GPIOB->MODER &= ~(GPIO_MODER_MODER3 | GPIO_MODER_MODER4 | GPIO_MODER_MODER5);
-//     GPIOB->MODER |= GPIO_MODER_MODER3_1 | GPIO_MODER_MODER4_1 | GPIO_MODER_MODER5_1;
-    
-//     // Set alternate function to AF0 (SPI1) for PB3, PB4, PB5
-//     GPIOB->AFR[0] &= ~(GPIO_AFRL_AFRL3 | GPIO_AFRL_AFRL4 | GPIO_AFRL_AFRL5);
-    
-//     // Enable SPI1 clock
-//     RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-    
-//     // Disable SPI1 before configuring
-//     SPI1->CR1 &= ~SPI_CR1_SPE;
-    
-//     // Configure SPI1
-//     SPI1->CR1 |= SPI_CR1_BR_2 | SPI_CR1_BR_1 | SPI_CR1_BR_0;
-//     SPI1->CR1 |= SPI_CR1_MSTR;    
-//     SPI1->CR1 &= ~SPI_CR1_LSBFIRST;
-//     SPI1->CR1 |= SPI_CR1_SSM | SPI_CR1_SSI;
-//     SPI1->CR2 |= SPI_CR2_FRXTH;
-//     SPI1->CR2 = (SPI1->CR2 & ~SPI_CR2_DS) | (0x7 << 8);
-    
-//     // Enable SPI1
-//     SPI1->CR1 |= SPI_CR1_SPE;
-// }
 
-// void sdcard_io_high_speed(void) {
-//     // Disable SPI1
-//     SPI1->CR1 &= ~SPI_CR1_SPE;
-    
-//     // Clear BR bits and set for 12MHz
-//     SPI1->CR1 &= ~(SPI_CR1_BR);
-//     SPI1->CR1 |= SPI_CR1_BR_1;
-    
-//     // Re-enable SPI1
-//     SPI1->CR1 |= SPI_CR1_SPE;
-// }
 uint8_t spi_transfer(uint8_t data) {
     while(!(SPI1->SR & SPI_SR_TXE));     // Wait until TX buffer empty
     *(uint8_t*)&(SPI1->DR) = data;       // Send data
@@ -463,34 +303,12 @@ void check_spi_config(void) {
     
     // Check data size
     uint32_t ds = (SPI1->CR2 & SPI_CR2_DS_Msk) >> SPI_CR2_DS_Pos;
-    printf("Data size: %d bits\n", ds + 1);
+    printf("Data size: %d bits\n", (int)(ds + 1));
     
     // Check if software slave management is enabled
     printf("Software slave management: %s\n", 
            (SPI1->CR1 & SPI_CR1_SSM) ? "Yes" : "No");
 }
-
-// void enable_sdcard(void) {
-//     // Set PB2 low to enable SD card
-//     GPIOB->BSRR = GPIO_BSRR_BR_2;
-// }
-
-// void disable_sdcard(void) {
-//     // Set PB2 high to disable SD card
-//     GPIOB->BSRR = GPIO_BSRR_BS_2;
-// }
-
-// void init_sdcard_io(void) {
-//     init_spi1_slow();
-    
-//     // Configure PB2 as output
-//     RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-//     GPIOB->MODER &= ~GPIO_MODER_MODER2;
-//     GPIOB->MODER |= GPIO_MODER_MODER2_0;
-    
-//     disable_sdcard();
-// }
-
 
 void test_lcd_setup(void) {
     // 1. Initialize basic SPI and GPIO
@@ -514,6 +332,272 @@ void test_lcd_setup(void) {
     printf("- Green diagonal line\n");
 }
 
+//============================================================================
+// constants
+//============================================================================
+// grid characteristics
+static int GRIDHEIGHT = 4;     // grid height
+static int GRIDWIDTH  = 4 ;     // grid witdh
+static int CELLCOUNT = 16 ;     // count of cells
+// board cell states
+static char EMPTYCELL = '0' ;   // no player as marked    
+static char P1CELL    = '1' ;   // P1 has marked
+static char P2CELL    = '2' ;   // p2 has marked
+// game states
+static char NONE  = '0' ;       // game is currently runnnig 
+static char P1WINS = '1' ;      // P1 won
+static char P2WINS = '2' ;      // P2 won
+static char TIE = '3' ;         // TIE (no winner and no cells)
+// placing valid or invalid chips (might need to revise)
+static const char VALID = 'v' ; // if the placing is valid or not
+static const char INVALID ='i' ;
+
+//============================================================================
+// game state variables
+//============================================================================
+char GAMESTATE =  '0' ;          // current state
+int CHIPSPLACED = 0 ;            // chips placed
+char ** board ;                  // current game
+
+//============================================================================
+// game mechanics
+//============================================================================
+int * allocateRow(){
+    // rowCount is a vector of the lowest unused space in
+    // the grid
+    int * rowCount = (int *)malloc(sizeof(int)* GRIDWIDTH) ; 
+    for (int i = 0 ; i < GRIDWIDTH ; i++){
+        rowCount[i] = GRIDHEIGHT - 1 ;
+    }
+    return rowCount ; 
+}
+void freeBoard(char ** arr){
+    // release all the arrays inside grid
+    for (int i = 0 ; i < GRIDHEIGHT ; i++)
+        free(arr[i]) ; 
+    free(arr);
+}
+char ** allocateBoard() { 
+    // creates the 2D array represnting the grid, initialize
+    // the board as empty by doing the value as EMPTYCELL
+    char ** arr = (char**) malloc(sizeof(char*) * GRIDHEIGHT); 
+    for (int i = 0 ; i < GRIDHEIGHT ; i++){
+        arr[i] = (char *)malloc(sizeof(char) * GRIDWIDTH) ; 
+    }
+    for (int i = 0; i < GRIDHEIGHT; i++)
+        for (int j = 0; j < GRIDWIDTH; j++)
+            arr[i][j] = EMPTYCELL;
+    return arr ;  
+}
+char placeChip(int * rowCount, int COL, char CHIP){
+    // places a chip and checks if there is any winner
+
+    // if you were not supposed to place the chip (game ended)
+    if (GAMESTATE == P1WINS) return P1WINS ;            // P1 won
+    else if (GAMESTATE == P2WINS) return P2WINS ;       // P2 won
+    else if (GAMESTATE == TIE) return TIE ;             // no one won
+
+    // if you are trying to place a chip outside the board 
+    if (rowCount[COL] == -1 ) return INVALID;           // overfill at top
+    else if ((COL >  (GRIDWIDTH - 1)) || (COL < 0)){    // invalid column
+        return INVALID ;
+    }
+
+    // if program made it here, it can place the chip correctly
+    board[rowCount[COL]][COL] = CHIP ;                  // update the board
+    rowCount[COL] -= 1 ;                                // update the lowest empty space
+    // starting here, program is getting ready for DFS,
+    // start by making a visited array
+    // check all possible directions (D,DL,L,UL,UR,R,DR)
+    for (int i = 0; i < 7 ; i++){
+    checkWin(rowCount[COL] + 1, COL, 1, CHIP, i);
+    }
+    CHIPSPLACED += 1 ;                                  // one more chip placed
+    // if there is no winner yet and the board is full, tie
+    if ((CHIPSPLACED == CELLCOUNT) && (GAMESTATE == NONE)){
+        GAMESTATE = TIE ;
+    }                       
+    return VALID ;                                      // placing is valid
+}
+
+void checkWin(int i, int j , int d, char CHIP, int dir){
+    // basically a DFS, if at any point we get to level 4,
+    // that means that there are 4 connected
+    // (i,j) are the 2D coordinates of the point
+    // d is the depth (if 4 player won)
+    // CHIP is who the player is (P1 or P2)
+    // dir is which direction we are checking (7 possible directions)
+    if (GAMESTATE != NONE) return ;                 // if someone already won
+    if (d == 4){                                    // current player won!
+        GAMESTATE = CHIP ; 
+        return ;
+    } 
+    changeCoordinates(&i,&j,dir) ;                  // update (i,j) based on direction
+
+    // make sure the new coordinate is in bounds
+    if ((i < 0) || (i > (GRIDHEIGHT - 1)) || (j < 0) || (j > (GRIDWIDTH - 1))){
+        return ;
+    }
+    if (board[i][j] == NONE) return ;             // make sure it has not been visited or empty
+    if (board[i][j] != CHIP) return ;               // make sure is owned by correct player
+    checkWin(i,j,d + 1,CHIP, dir) ;         // if here, it means player has connection in the direction
+}
+
+void changeCoordinates(int * i , int * j, int dir){
+    // dir can be thought of a dictionary 
+    // 0 -> Down
+    // 1 -> Down left
+    // 2 -> Left
+    // 3 -> Up left
+    // 4 -> Up right (Up is always empty)
+    // 5 -> Right
+    // 6 -> Down right
+    switch (dir)
+    {
+    case 0:
+        *i += 1 ;
+        break;
+    case 1:
+        *i += 1 ;
+        *j -= 1 ;
+        break;
+    case 2 :
+        *j -= 1 ;
+        break ;
+    case 3 :
+        *i -= 1 ;
+        *j -= 1 ;
+        break ;
+    case 4 :
+        *i -= 1 ;
+        *j += 1 ;
+        break ;
+    case 5 :
+        *j += 1 ;
+        break ;
+    case 6 :
+        *i += 1 ;
+        *j -= 1 ;
+    default:
+        break;
+    }
+}
+
+void display_board() {
+    // Clear display
+    // Draw the grid
+
+
+    for(int i = 0; i < GRIDHEIGHT; i++) {
+        for(int j = 0; j < GRIDWIDTH; j++) {
+            if (board[i][j] != NONE) {
+                if (board[i][j] == '1') {
+                    // draw a shape for P1
+                } else {
+                    // draw a shape for P2
+                }
+            }
+        }
+    }
+}
+
+
+uint16_t msg[8] = { 0x0000,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700 };
+extern const char font[];
+void print(const char str[]);
+void printfloat(float f);
+
+
+//============================================================================
+// enable_ports()
+//============================================================================
+void enable_ports(void) {
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+    GPIOB->MODER |= 0x00155555;
+    GPIOC->MODER |= 0x00005500;
+    GPIOC->OTYPER |= 0x00f0;
+    GPIOC->MODER &= ~0x000000ff;
+    GPIOC->PUPDR |= 0x00000055;
+}
+
+
+
+uint8_t col; // the column being scanned
+
+void drive_column(int);   // energize one of the column outputs
+int  read_rows();         // read the four row inputs
+void update_history(int col, int rows); // record the buttons of the driven column
+char get_key_event(void); // wait for a button event (press or release)
+char get_keypress(void);  // wait for only a button press event.
+float getfloat(void);     // read a floating-point number from keypad
+void show_keys(void);     // demonstrate get_key_event()
+
+//============================================================================
+// The Timer 7 ISR
+//============================================================================
+void TIM7_IRQHandler(){
+    TIM7->SR &= ~TIM_SR_UIF;
+    int rows = read_rows();
+    update_history(col,rows);
+    col = (col + 1) & 3;
+    drive_column(col);
+}
+//============================================================================
+// init_tim7()
+//============================================================================
+void init_tim7(void) {
+    RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
+    TIM7->PSC = 480 - 1;
+    TIM7->ARR = 100 - 1;
+    TIM7->DIER |= TIM_DIER_UIE;
+    NVIC->ISER[0] |= 1 << TIM7_IRQn;
+    TIM7->CR1 |= TIM_CR1_CEN;
+}
+void init_spi1() {
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    GPIOA->MODER |= 0x80008800;
+    GPIOA->AFR[0] &= ~(0xf << 20);
+    GPIOA->AFR[0] &= ~(0xf << 28);
+    GPIOA->AFR[1] &= ~(0xf << 28);
+    RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+    SPI1->CR1 &= ~SPI_CR1_SPE;
+    SPI1->CR1 |= SPI_CR1_BR;
+    SPI1->CR2 = SPI_CR2_TXDMAEN | SPI_CR2_SSOE | SPI_CR2_NSSP | SPI_CR2_DS_3 | SPI_CR2_DS_0;
+    SPI1->CR1 |= SPI_CR1_MSTR;
+    SPI1->CR1 |= SPI_CR1_SPE;
+}
+void spi_cmd(unsigned int data) {
+    while((SPI1->SR & SPI_SR_TXE) == 0);
+    SPI1->DR = data;
+}
+void spi_data(unsigned int data) {
+    spi_cmd(data | 0x200);
+}
+void spi1_init_oled() {
+    nano_wait(1000000);
+    spi_cmd(0x38);
+    spi_cmd(0x08);
+    spi_cmd(0x01);
+    nano_wait(2000000);
+    spi_cmd(0x06);
+    spi_cmd(0x02);
+    spi_cmd(0x0c);
+}
+void spi1_display1(const char *string) {
+    spi_cmd(0x02);
+    for(int i = 0; string[i] != '\0'; i++){
+        spi_data(string[i]);
+    }
+}
+void spi1_display2(const char *string) {
+    spi_cmd(0xc0);
+    for(int i = 0; string[i] != '\0'; i++){
+        spi_data(string[i]);
+    }
+}
+
+
 int main(void) {
     internal_clock();
     init_usart5();
@@ -521,6 +605,61 @@ int main(void) {
     setbuf(stdin,0);
     setbuf(stdout,0);
     setbuf(stderr,0);
+
+
+    enable_ports();
+    init_tim7();
+    init_spi1();
+    spi1_init_oled();
+
+
     command_shell();
+    
+
+    // board = allocateBoard() ;   // create board
+    // int * rowCount = allocateRow() ;    // create rowCount
+
+
+    // int i = 0;
+    // char turn = P1CELL;
+    // // init_tim7();
+    // int c ;
+    // char CHECK;
+    // spi1_display1("Turn of : ") ; 
+    // spi1_display2("Player 1");
+    // for(;;){
+    //     c = (int)get_keypress();
+    //     c = c - 49;
+        
+    //     turn = (i % 2) ? P2CELL : P1CELL;
+        
+    //     if (turn == P2CELL) spi1_display2("Player 1    ");
+    //     else spi1_display2("Player 2     ");
+
+    //     CHECK = placeChip(rowCount,c,turn) ;
+    //     if (CHECK == INVALID){
+    //         spi1_display1("INVALID MOVE!") ; 
+    //         spi1_display2("            ");
+    //         nano_wait(1000000000);
+    //         nano_wait(1000000000);
+    //         nano_wait(1000000000); 
+    //         spi1_display1("Turn of :     ") ; 
+    //         if (turn == P2CELL) spi1_display2("Player 2    ");
+    //         else spi1_display2("Player 1     ");
+    //         i -= 1 ; 
+    //     }else if (CHECK == P1WINS){
+    //         spi1_display1("PLAYER 1 WON!!") ; 
+    //         spi1_display2("            ");
+    //          break ;
+    //     }else if (CHECK == P2WINS){
+    //         spi1_display1("PLAYER 2 WON!!") ; 
+    //         spi1_display2("            ");
+    //         break ;
+    //     }else if (CHECK == TIE){
+    //         spi1_display1("TIE...       ") ; 
+    //         spi1_display2("            ");
+    //         break ;
+    //     }
+    //     i = i + 1;
+    // }
 }
-#endif
