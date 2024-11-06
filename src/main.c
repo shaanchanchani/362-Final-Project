@@ -405,6 +405,7 @@ char placeChip(int * rowCount, int COL, char CHIP){
 
     // if program made it here, it can place the chip correctly
     board[rowCount[COL]][COL] = CHIP ;                  // update the board
+    draw_board(board);                                 // draw the board
     rowCount[COL] -= 1 ;                                // update the lowest empty space
     // starting here, program is getting ready for DFS,
     // start by making a visited array
@@ -483,25 +484,6 @@ void changeCoordinates(int * i , int * j, int dir){
     }
 }
 
-void display_board() {
-    // Clear display
-    // Draw the grid
-
-
-    for(int i = 0; i < GRIDHEIGHT; i++) {
-        for(int j = 0; j < GRIDWIDTH; j++) {
-            if (board[i][j] != NONE) {
-                if (board[i][j] == '1') {
-                    // draw a shape for P1
-                } else {
-                    // draw a shape for P2
-                }
-            }
-        }
-    }
-}
-
-
 uint16_t msg[8] = { 0x0000,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700 };
 extern const char font[];
 void print(const char str[]);
@@ -554,22 +536,45 @@ void init_tim7(void) {
     NVIC->ISER[0] |= 1 << TIM7_IRQn;
     TIM7->CR1 |= TIM_CR1_CEN;
 }
-void init_spi1() {
-    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
-    GPIOA->MODER |= 0x80008800;
-    GPIOA->AFR[0] &= ~(0xf << 20);
-    GPIOA->AFR[0] &= ~(0xf << 28);
-    GPIOA->AFR[1] &= ~(0xf << 28);
-    RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-    SPI1->CR1 &= ~SPI_CR1_SPE;
-    SPI1->CR1 |= SPI_CR1_BR;
-    SPI1->CR2 = SPI_CR2_TXDMAEN | SPI_CR2_SSOE | SPI_CR2_NSSP | SPI_CR2_DS_3 | SPI_CR2_DS_0;
-    SPI1->CR1 |= SPI_CR1_MSTR;
-    SPI1->CR1 |= SPI_CR1_SPE;
+// void init_spi1() {
+//     RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+//     GPIOA->MODER |= 0x80008800;
+//     GPIOA->AFR[0] &= ~(0xf << 20);
+//     GPIOA->AFR[0] &= ~(0xf << 28);
+//     GPIOA->AFR[1] &= ~(0xf << 28);
+//     RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+//     SPI1->CR1 &= ~SPI_CR1_SPE;
+//     SPI1->CR1 |= SPI_CR1_BR;
+//     SPI1->CR2 = SPI_CR2_TXDMAEN | SPI_CR2_SSOE | SPI_CR2_NSSP | SPI_CR2_DS_3 | SPI_CR2_DS_0;
+//     SPI1->CR1 |= SPI_CR1_MSTR;
+//     SPI1->CR1 |= SPI_CR1_SPE;
+// }
+
+void init_spi2(void) {
+    // Enable GPIOB clock
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+    
+    // Configure PB13 (SCK), PB15 (MOSI) for OLED
+    GPIOB->MODER &= ~(GPIO_MODER_MODER13 | GPIO_MODER_MODER15);
+    GPIOB->MODER |= (GPIO_MODER_MODER13_1 | GPIO_MODER_MODER15_1);
+    
+    // Set alternate function to SPI2 (AF0)
+    GPIOB->AFR[1] &= ~(GPIO_AFRH_AFSEL13 | GPIO_AFRH_AFSEL15);
+    
+    // Enable SPI2 clock
+    RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
+    
+    // Configure SPI2 for OLED (same settings as before, just for SPI2)
+    SPI2->CR1 &= ~SPI_CR1_SPE;
+    SPI2->CR1 |= SPI_CR1_BR;
+    SPI2->CR2 = SPI_CR2_TXDMAEN | SPI_CR2_SSOE | SPI_CR2_NSSP | SPI_CR2_DS_3 | SPI_CR2_DS_0;
+    SPI2->CR1 |= SPI_CR1_MSTR;
+    SPI2->CR1 |= SPI_CR1_SPE;
 }
+
 void spi_cmd(unsigned int data) {
-    while((SPI1->SR & SPI_SR_TXE) == 0);
-    SPI1->DR = data;
+    while((SPI2->SR & SPI_SR_TXE) == 0);
+    SPI2->DR = data;
 }
 void spi_data(unsigned int data) {
     spi_cmd(data | 0x200);
@@ -596,6 +601,68 @@ void spi1_display2(const char *string) {
         spi_data(string[i]);
     }
 }
+void draw_board(char** board) {
+    // Draw the game board grid with pieces
+    const int CELL_SIZE = 60;
+    const int BOARD_X = 0;  // Starting X position of board
+    const int BOARD_Y = 0;  // Starting Y position of board
+    const uint16_t GRID_COLOR = 0x7BEF;  // Light blue
+    const uint16_t BG_COLOR = 0x001F;    // Dark blue
+    const uint16_t P1_COLOR = 0xF800;    // Red for P1
+    const uint16_t P2_COLOR = 0xFFE0;    // Yellow for P2
+    const int PIECE_MARGIN = 4;          // Margin for pieces within cells
+    
+    // Draw the background
+    LCD_DrawFillRectangle(BOARD_X, BOARD_Y, 
+                         BOARD_X + GRIDWIDTH * CELL_SIZE,
+                         BOARD_Y + GRIDHEIGHT * CELL_SIZE,
+                         BG_COLOR);
+    
+    // Draw vertical grid lines
+    for (int x = 0; x <= GRIDWIDTH; x++) {
+        LCD_DrawLine(BOARD_X + x * CELL_SIZE,
+                    BOARD_Y,
+                    BOARD_X + x * CELL_SIZE,
+                    BOARD_Y + GRIDHEIGHT * CELL_SIZE,
+                    GRID_COLOR);
+    }
+    
+    // Draw horizontal grid lines
+    for (int y = 0; y <= GRIDHEIGHT; y++) {
+        LCD_DrawLine(BOARD_X,
+                    BOARD_Y + y * CELL_SIZE,
+                    BOARD_X + GRIDWIDTH * CELL_SIZE,
+                    BOARD_Y + y * CELL_SIZE,
+                    GRID_COLOR);
+    }
+    
+    // Draw pieces based on board array
+    for(int i = 0; i < GRIDHEIGHT; i++) {
+        for(int j = 0; j < GRIDWIDTH; j++) {
+            if(board[i][j] != EMPTYCELL) {
+                int x = BOARD_X + j * CELL_SIZE + PIECE_MARGIN;
+                int y = BOARD_Y + i * CELL_SIZE + PIECE_MARGIN;
+                int size = CELL_SIZE - 2 * PIECE_MARGIN;
+                
+                // Draw circle for each piece
+                LCD_Circle(x + size/2, y + size/2, size/2, 1, 
+                          board[i][j] == P1CELL ? P1_COLOR : P2_COLOR);
+            }
+        }
+    }
+}
+
+void init_board() {
+    // Initialize the LCD
+    LCD_Setup();
+    
+    // Test Case 1: Empty board
+    //printf("Testing empty board...\n");
+    //char **empty_board = allocateBoard();
+    LCD_Clear(0x0000);  // Clear to black
+    draw_board(board);
+    //nano_wait(2000000000);  // Wait 2 seconds
+}
 
 
 int main(void) {
@@ -609,57 +676,62 @@ int main(void) {
 
     enable_ports();
     init_tim7();
-    init_spi1();
+    init_spi2();
     spi1_init_oled();
 
 
-    command_shell();
+    // command_shell();
+
     
 
-    // board = allocateBoard() ;   // create board
-    // int * rowCount = allocateRow() ;    // create rowCount
+    board = allocateBoard() ;   // create board
+
+    
+    int * rowCount = allocateRow() ;    // create rowCount
 
 
-    // int i = 0;
-    // char turn = P1CELL;
-    // // init_tim7();
-    // int c ;
-    // char CHECK;
-    // spi1_display1("Turn of : ") ; 
-    // spi1_display2("Player 1");
-    // for(;;){
-    //     c = (int)get_keypress();
-    //     c = c - 49;
+    int i = 0;
+    init_board();
+
+    char turn = P1CELL;
+    // init_tim7();
+    int c ;
+    char CHECK;
+    spi1_display1("Turn of : ") ; 
+    spi1_display2("Player 1");
+    for(;;){
+        c = (int)get_keypress();
+        c = c - 49;
         
-    //     turn = (i % 2) ? P2CELL : P1CELL;
+        turn = (i % 2) ? P2CELL : P1CELL;
         
-    //     if (turn == P2CELL) spi1_display2("Player 1    ");
-    //     else spi1_display2("Player 2     ");
+        if (turn == P2CELL) spi1_display2("Player 1    ");
+        else spi1_display2("Player 2     ");
 
-    //     CHECK = placeChip(rowCount,c,turn) ;
-    //     if (CHECK == INVALID){
-    //         spi1_display1("INVALID MOVE!") ; 
-    //         spi1_display2("            ");
-    //         nano_wait(1000000000);
-    //         nano_wait(1000000000);
-    //         nano_wait(1000000000); 
-    //         spi1_display1("Turn of :     ") ; 
-    //         if (turn == P2CELL) spi1_display2("Player 2    ");
-    //         else spi1_display2("Player 1     ");
-    //         i -= 1 ; 
-    //     }else if (CHECK == P1WINS){
-    //         spi1_display1("PLAYER 1 WON!!") ; 
-    //         spi1_display2("            ");
-    //          break ;
-    //     }else if (CHECK == P2WINS){
-    //         spi1_display1("PLAYER 2 WON!!") ; 
-    //         spi1_display2("            ");
-    //         break ;
-    //     }else if (CHECK == TIE){
-    //         spi1_display1("TIE...       ") ; 
-    //         spi1_display2("            ");
-    //         break ;
-    //     }
-    //     i = i + 1;
-    // }
+        CHECK = placeChip(rowCount,c,turn) ;
+        if (CHECK == INVALID){
+            spi1_display1("INVALID MOVE!") ; 
+            spi1_display2("            ");
+            nano_wait(1000000000);
+            nano_wait(1000000000);
+            nano_wait(1000000000); 
+            spi1_display1("Turn of :     ") ; 
+            if (turn == P2CELL) spi1_display2("Player 2    ");
+            else spi1_display2("Player 1     ");
+            i -= 1 ; 
+        }else if (CHECK == P1WINS){
+            spi1_display1("PLAYER 1 WON!!") ; 
+            spi1_display2("            ");
+             break ;
+        }else if (CHECK == P2WINS){
+            spi1_display1("PLAYER 2 WON!!") ; 
+            spi1_display2("            ");
+            break ;
+        }else if (CHECK == TIE){
+            spi1_display1("TIE...       ") ; 
+            spi1_display2("            ");
+            break ;
+        }
+        i = i + 1;
+    }
 }
