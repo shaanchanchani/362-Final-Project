@@ -7,7 +7,7 @@
 #include "tty.h"
 #include "lcd.h"
 #include "commands.h"
-
+#include "sound.h"
 
 void internal_clock();
 void init_spi1_slow(void);
@@ -57,6 +57,47 @@ void enable_tty_interrupt(void) {
     DMA2_Channel2->CCR |= DMA_CCR_EN;
 }
 
+#define N 1024
+#define RATE 20000
+
+int step0 = 0;
+int offset0 = 0;
+int step1 = 0;
+int offset1 = 0;
+
+
+void setup_dac(void) {
+    RCC -> AHBENR |= RCC_AHBENR_GPIOAEN ; 
+    GPIOA ->  MODER |= GPIO_MODER_MODER4;
+    RCC -> APB1ENR |= RCC_APB1ENR_DACEN ;
+    DAC1 -> CR &= ~ (0b111 << 3) ;
+    DAC1 -> CR |= DAC_CR_TEN1 ; 
+    DAC1 -> CR |= DAC_CR_EN1 ; 
+}
+
+void TIM6_DAC_IRQHandler(){
+    TIM6 -> SR &= ~TIM_SR_UIF ; 
+    offset0 += step0 ; 
+    offset1 += step1;
+    if (offset0 >= (N << 16)) offset0 -= (N << 16) ;
+    if (offset1 >= (N << 16)) offset1 -= (N << 16) ;
+
+    int samp = wavetable[offset0>>16] + wavetable[offset1>>16] ; 
+    samp *= 3 ; 
+    samp >>= 17 ; 
+    samp += 2048 ; 
+    DAC -> DHR12R1 = samp ; 
+}
+
+void init_tim6(void) {
+    RCC -> APB1ENR |= RCC_APB1ENR_TIM6EN ; 
+    TIM6 -> PSC = 48 - 1 ; 
+    TIM6 -> ARR = (1000000 / RATE) - 1 ;
+    TIM6 -> DIER |= TIM_DIER_UIE ;
+    NVIC -> ISER[0] |= 1<<17;
+    TIM6 -> CR1 |= 0b1; 
+    TIM6 -> CR2 |= (0b0000000000100000) ;
+}
 // Works like line_buffer_getchar(), but does not check or clear ORE nor wait on new characters in USART
 char interrupt_getchar() {
     while(fifo_newline(&input_fifo) == 0) {
@@ -585,6 +626,8 @@ void spi1_display2(const char *string) {
         spi_data(string[i]);
     }
 }
+
+
 void draw_board(char** board) {
     // Draw the game board grid with pieces
     const int CELL_SIZE = 30;
@@ -648,7 +691,36 @@ void init_board() {
     //nano_wait(2000000000);  // Wait 2 seconds
 }
 
+void set_freq(int chan, float f) {
+    if (chan == 0) {
+        if (f == 0.0) {
+            step0 = 0;
+            offset0 = 0;
+        } else
+            step0 = (f * N / RATE) * (1<<16);
+    }
+    if (chan == 1) {
+        if (f == 0.0) {
+            step1 = 0;
+            offset1 = 0;
+        } else
+            step1 = (f * N / RATE) * (1<<16);
+    }
+}
 
+void play_note(float freq){
+    set_freq(0,freq);
+}
+
+void stop_note(){
+    set_freq(0,0);
+}
+
+void placeChipSound(){
+    play_note(20000) ; 
+    nano_wait(1000000000);
+    stop_note() ;
+}
 int main(void) {
     internal_clock();
     init_usart5();
@@ -663,16 +735,14 @@ int main(void) {
     init_spi2();
     spi1_init_oled();
 
+    setup_dac();
+    init_tim6();
 
     // command_shell();
 
-    
-
     board = allocateBoard() ;   // create board
-
     
     int * rowCount = allocateRow() ;    // create rowCount
-
 
     int i = 0;
     init_board();
@@ -715,7 +785,6 @@ int main(void) {
             spi1_display2("            ");
             break ;
         }
-        nano_wait(1000) ; 
         i = i + 1;
     }
 }
