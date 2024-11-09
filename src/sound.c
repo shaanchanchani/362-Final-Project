@@ -1,24 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #define TABLE_SIZE 1024
-#define SAMPLE_RATE 20000  // Changed to match your 20kHz rate
+#define SAMPLE_RATE 20000
 
 typedef struct {
-    int8_t* samples;       // Changed to 8-bit
+    int8_t* samples;
     size_t size;
     float phase;
     float phase_inc;
 } wavetable_t;
 
-// Create a new wavetable
 wavetable_t* create_wavetable(size_t size) {
+    printf("Creating wavetable with size %zu\n", size);  // Debug print
+    
     wavetable_t* wt = (wavetable_t*)malloc(sizeof(wavetable_t));
-    if (!wt) return NULL;
+    if (!wt) {
+        printf("Failed to allocate wavetable struct\n");
+        return NULL;
+    }
 
-    wt->samples = (int8_t*)malloc(size * sizeof(int8_t));  // Changed to 8-bit
+    printf("Allocating samples array\n");  // Debug print
+    wt->samples = (int8_t*)malloc(size * sizeof(int8_t));
     if (!wt->samples) {
+        printf("Failed to allocate samples array\n");
         free(wt);
         return NULL;
     }
@@ -27,79 +34,74 @@ wavetable_t* create_wavetable(size_t size) {
     wt->phase = 0.0f;
     wt->phase_inc = 0.0f;
 
+    printf("Wavetable created successfully\n");  // Debug print
     return wt;
 }
 
-// Load raw 8-bit samples
 int load_raw_samples(const char* filename, wavetable_t* wt) {
+    printf("Opening file: %s\n", filename);  // Debug print
+    
     FILE* file = fopen(filename, "rb");
     if (!file) {
         printf("Error: Could not open file %s\n", filename);
         return -1;
     }
 
-    // Read raw 8-bit samples directly
-    size_t samples_read = fread(wt->samples, sizeof(int8_t), wt->size, file);
-    if (samples_read != wt->size) {
-        printf("Warning: Only read %zu of %zu samples\n", samples_read, wt->size);
+    // Get file size
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    printf("File size: %ld bytes\n", file_size);  // Debug print
+    printf("Wavetable size: %zu samples\n", wt->size);  // Debug print
+
+    // Read only up to wavetable size or file size, whichever is smaller
+    size_t samples_to_read = (file_size < wt->size) ? file_size : wt->size;
+    printf("Reading %zu samples\n", samples_to_read);  // Debug print
+
+    size_t samples_read = fread(wt->samples, sizeof(int8_t), samples_to_read, file);
+    printf("Actually read %zu samples\n", samples_read);  // Debug print
+
+    // If we didn't fill the whole table, pad with zeros
+    if (samples_read < wt->size) {
+        printf("Padding remaining %zu samples with zeros\n", wt->size - samples_read);
+        memset(wt->samples + samples_read, 0, wt->size - samples_read);
     }
 
     fclose(file);
     return 0;
 }
 
-// Get next sample with interpolation
-float get_next_sample(wavetable_t* wt) {
-    float index = wt->phase * wt->size;
-    size_t index_1 = (size_t)index;
-    size_t index_2 = (index_1 + 1) % wt->size;
-    
-    float frac = index - (float)index_1;
-    float sample = wt->samples[index_1] + 
-                  frac * (wt->samples[index_2] - wt->samples[index_1]);
-    
-    wt->phase += wt->phase_inc;
-    if (wt->phase >= 1.0f) wt->phase -= 1.0f;
-    
-    return sample / 128.0f;  // Convert to -1.0 to 1.0 range (8-bit range is -128 to 127)
-}
-
-// Set playback frequency
-void set_frequency(wavetable_t* wt, float frequency) {
-    wt->phase_inc = frequency * wt->size / SAMPLE_RATE;
-}
-
-// Clean up
-void destroy_wavetable(wavetable_t* wt) {
-    if (wt) {
-        free(wt->samples);
-        free(wt);
-    }
-}
-
-// Example usage
+// Main test program
 int main() {
+    printf("Starting program\n");
+
+    // Create wavetable
     wavetable_t* wt = create_wavetable(TABLE_SIZE);
     if (!wt) {
         printf("Failed to create wavetable\n");
         return 1;
     }
 
-    // Load your raw audio samples
+    // Load samples
     if (load_raw_samples("myfile.raw", wt) != 0) {
-        destroy_wavetable(wt);
+        printf("Failed to load samples\n");
+        if (wt->samples) free(wt->samples);
+        free(wt);
         return 1;
     }
 
-    // Set frequency to 440 Hz
-    set_frequency(wt, 440.0f);
-
-    // Generate some samples
-    for (int i = 0; i < 1000; i++) {
-        float sample = get_next_sample(wt);
-        // Use sample here...
+    // Print first few samples to verify data
+    printf("First 10 samples: ");
+    for (int i = 0; i < 10; i++) {
+        printf("%d ", wt->samples[i]);
     }
+    printf("\n");
 
-    destroy_wavetable(wt);
+    // Clean up
+    if (wt->samples) free(wt->samples);
+    free(wt);
+    printf("Program completed successfully\n");
+
     return 0;
 }
