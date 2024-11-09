@@ -1,19 +1,3 @@
-/**
-  ******************************************************************************
-  * @file    main.c
-  * @author  Weili An, Niraj Menon
-  * @date    Feb 7, 2024
-  * @brief   ECE 362 Lab 7 student template
-  ******************************************************************************
-*/
-
-/*******************************************************************************/
-
-// Fill out your username!  Even though we're not using an autotest, 
-// it should be a habit to fill out your username in this field now.
-const char* username = "schancha";
-
-/*******************************************************************************/ 
 
 #include "stm32f0xx.h"
 #include <stdint.h>
@@ -336,9 +320,9 @@ void test_lcd_setup(void) {
 // constants
 //============================================================================
 // grid characteristics
-static int GRIDHEIGHT = 4;     // grid height
-static int GRIDWIDTH  = 4 ;     // grid witdh
-static int CELLCOUNT = 16 ;     // count of cells
+static int GRIDHEIGHT = 8;     // grid height
+static int GRIDWIDTH  = 8 ;     // grid witdh
+static int CELLCOUNT = 64 ;     // count of cells
 // board cell states
 static char EMPTYCELL = '0' ;   // no player as marked    
 static char P1CELL    = '1' ;   // P1 has marked
@@ -554,12 +538,12 @@ void init_spi2(void) {
     // Enable GPIOB clock
     RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
     
-    // Configure PB13 (SCK), PB15 (MOSI) for OLED
-    GPIOB->MODER &= ~(GPIO_MODER_MODER13 | GPIO_MODER_MODER15);
-    GPIOB->MODER |= (GPIO_MODER_MODER13_1 | GPIO_MODER_MODER15_1);
+    // Configure PB13 (SCK), PB15 (MOSI), PB12 (CS)
+    GPIOB->MODER &= ~(GPIO_MODER_MODER13 | GPIO_MODER_MODER15 | GPIO_MODER_MODER12);
+    GPIOB->MODER |= (GPIO_MODER_MODER13_1 | GPIO_MODER_MODER15_1 | GPIO_MODER_MODER12_1);
     
     // Set alternate function to SPI2 (AF0)
-    GPIOB->AFR[1] &= ~(GPIO_AFRH_AFSEL13 | GPIO_AFRH_AFSEL15);
+    GPIOB->AFR[1] &= ~(GPIO_AFRH_AFSEL13 | GPIO_AFRH_AFSEL15 | GPIO_AFRH_AFSEL12);
     
     // Enable SPI2 clock
     RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
@@ -603,7 +587,7 @@ void spi1_display2(const char *string) {
 }
 void draw_board(char** board) {
     // Draw the game board grid with pieces
-    const int CELL_SIZE = 60;
+    const int CELL_SIZE = 30;
     const int BOARD_X = 0;  // Starting X position of board
     const int BOARD_Y = 0;  // Starting Y position of board
     const uint16_t GRID_COLOR = 0x7BEF;  // Light blue
@@ -700,8 +684,8 @@ int main(void) {
     spi1_display1("Turn of : ") ; 
     spi1_display2("Player 1");
     for(;;){
-        c = (int)get_keypress();
-        c = c - 49;
+        c = (int)get_keypress();        // get press key
+        c = c - 49;                     // turns into 
         
         turn = (i % 2) ? P2CELL : P1CELL;
         
@@ -714,24 +698,24 @@ int main(void) {
             spi1_display2("            ");
             nano_wait(1000000000);
             nano_wait(1000000000);
-            nano_wait(1000000000); 
             spi1_display1("Turn of :     ") ; 
             if (turn == P2CELL) spi1_display2("Player 2    ");
             else spi1_display2("Player 1     ");
             i -= 1 ; 
-        }else if (CHECK == P1WINS){
+        }else if (GAMESTATE == P1WINS){
             spi1_display1("PLAYER 1 WON!!") ; 
             spi1_display2("            ");
-             break ;
-        }else if (CHECK == P2WINS){
+            break ;
+        }else if (GAMESTATE == P2WINS){
             spi1_display1("PLAYER 2 WON!!") ; 
             spi1_display2("            ");
             break ;
-        }else if (CHECK == TIE){
+        }else if (GAMESTATE == TIE){
             spi1_display1("TIE...       ") ; 
             spi1_display2("            ");
             break ;
         }
+        nano_wait(1000) ; 
         i = i + 1;
     }
 }
